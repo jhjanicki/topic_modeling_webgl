@@ -103,7 +103,7 @@ const scene = new THREE.Scene()
  * Scatter Plot
  */
 const loadData = async () => {
-    const data = await d3.csv("/data/topic_model_tweet_data.csv")
+    const data = await d3.csv("./topic_model_tweet_data.csv")
     return data
 }
 

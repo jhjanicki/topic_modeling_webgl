@@ -1,16 +1,3 @@
-# Three.js Journey
+# Topic modeling
 
-## Setup
-Download [Node.js](https://nodejs.org/en/download/).
-Run this followed commands:
-
-``` bash
-# Install dependencies (only the first time)
-npm install
-
-# Run the local server at localhost:8080
-npm run dev
-
-# Build for production in the dist/ directory
-npm run build
-```
+WebGL D3 chart showing tweet topics based on analysis using topic modeling then using uMap to map them into 2D space
