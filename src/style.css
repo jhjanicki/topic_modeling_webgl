@@ -30,13 +30,27 @@ body {
 }
 
 .topic-button.active {
-    background-color: #4CAF50;
+    background-color: #636363;
     color: white;
 }
 
 .webgl {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    outline: none;
+    z-index: 1;
+}
+
+.tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    pointer-events: none;
+    display: none;
+    z-index: 1000; /* Increased z-index to ensure it's above the canvas */
+    max-width: 200px;
+    word-wrap: break-word;
 }

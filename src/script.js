@@ -10,6 +10,29 @@ let pointsMaterial;
 let topics = [];
 let activeTopics = new Set();
 let data; // Declare data at the top level
+let raycaster;
+let mouse;
+// At the top of your file, with other global variables
+let tooltip;
+
+// In your initialization code (e.g., at the start of createScatterPlot or in a separate init function)
+function initTooltip() {
+    tooltip = document.getElementById('tooltip');
+}
+
+function updateTooltip(content, x, y) {
+    tooltip.innerHTML = content;
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+    tooltip.style.display = 'block';
+}
+
+function hideTooltip() {
+    tooltip.style.display = 'none';
+}
+
+// In your createScatterPlot function, add:
+initTooltip();
 
 const createTopicButtons = () => {
     const filterContainer = document.getElementById('topic-filters');
@@ -120,7 +143,7 @@ const createScatterPlot = (loadedData) => {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
 
     pointsMaterial = new THREE.PointsMaterial({
-        size: 0.005,
+        size: 0.003,
         vertexColors: true,
         sizeAttenuation: true,
         transparent: true,
@@ -129,6 +152,15 @@ const createScatterPlot = (loadedData) => {
 
     points = new THREE.Points(geometry, pointsMaterial);
     scene.add(points);
+
+    // Initialize raycaster and mouse
+    raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 0.01;
+    mouse = new THREE.Vector2();
+
+
+    // Add mouse move event listener
+    window.addEventListener('mousemove', onMouseMove);
 
     // Extract unique topics from the existing data
     topics = [...new Set(data.map(d => d.Topic))];
@@ -142,9 +174,17 @@ const createScatterPlot = (loadedData) => {
     scene.add(axesHelper);
 }
 
+
+function onMouseMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
+
 // Load data and create scatter plot
 loadData().then(loadedData => {
     createScatterPlot(loadedData);
+    animate(); // Start the animation loop after creating the scatter plot
 });
 
 /**
@@ -174,7 +214,7 @@ window.addEventListener('resize', () =>
  * Camera
  */
 // Base camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.0001, 1000)
+const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.00001, 1000)
 camera.position.set(0, 0, 2)
 scene.add(camera)
 
@@ -197,11 +237,43 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 /**
  * Animate
  */
-const clock = new THREE.Clock()
 
 const animate = () => {
     requestAnimationFrame(animate);
     controls.update();
+
+    // Update point size based on camera distance
+    if (points && camera) {
+        const distance = camera.position.distanceTo(controls.target);
+        const baseSize = 0.001;
+        const minSize = 0.0005;
+        const scaleFactor = Math.max(distance * 0.1, 1);
+        pointsMaterial.size = Math.max(baseSize / scaleFactor, minSize);
+    }
+
+   // Check for hover
+   if (raycaster && mouse && camera && points && data) {
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(points);
+
+    if (intersects.length > 0) {
+        const index = intersects[0].index;
+        const point = data[index];
+        if (point && point.User && point.Topic) {
+            const tooltipContent = `<strong>User:</strong> ${point.User}<br><strong>Topic:</strong> ${point.Topic}`;
+            const vector = new THREE.Vector3().fromBufferAttribute(points.geometry.attributes.position, index);
+            vector.project(camera);
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+            updateTooltip(tooltipContent, x + 10, y + 10);
+        } else {
+            hideTooltip();
+        }
+    } else {
+        hideTooltip();
+    }
+}
+
     renderer.render(scene, camera);
 }
 animate();
@@ -212,7 +284,7 @@ console.log('Camera position:', camera.position)
 
 // Add GUI controls for camera and points
 gui.add(camera, 'fov', 1, 180).onChange(() => camera.updateProjectionMatrix())
-gui.add(camera.position, 'x', 0.01, 10).name('Camera X')
-gui.add(camera.position, 'y', 0.01, 10).name('Camera Y')
 gui.add(camera.position, 'z', 0.01, 10).name('Camera Z')
-gui.add(material, 'size', 0.0001, 0.01).name('Point Size')
+// gui.add(pointsMaterial, 'size', 0.0001, 0.01).name('Point Size')
+
+
