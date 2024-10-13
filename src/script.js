@@ -3,6 +3,67 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import GUI from 'lil-gui'
 import * as d3 from 'd3'
 
+
+
+let points;
+let pointsMaterial;
+let topics = [];
+let activeTopics = new Set();
+let data; // Declare data at the top level
+
+const createTopicButtons = () => {
+    const filterContainer = document.getElementById('topic-filters');
+    if (!filterContainer) {
+        console.error('Filter container not found');
+        return;
+    }
+    filterContainer.innerHTML = ''; // Clear existing buttons
+    topics.forEach(topic => {
+        const button = document.createElement('button');
+        button.textContent = topic;
+        button.classList.add('topic-button');
+        button.addEventListener('click', () => toggleTopic(topic));
+        filterContainer.appendChild(button);
+    });
+}
+
+const toggleTopic = (topic) => {
+    console.log(`Toggling topic: ${topic}`);
+    const button = document.querySelector(`.topic-button:nth-child(${topics.indexOf(topic) + 1})`);
+    if (activeTopics.has(topic)) {
+        activeTopics.delete(topic);
+        button.classList.remove('active');
+    } else {
+        activeTopics.add(topic);
+        button.classList.add('active');
+    }
+    console.log(`Active topics: ${Array.from(activeTopics)}`);
+    updatePointsVisibility();
+}
+
+const updatePointsVisibility = () => {
+    if (!points || !data) {
+        console.error('Points or data not initialized');
+        return;
+    }
+
+    const geometry = points.geometry;
+    const alphas = geometry.attributes.alpha.array;
+
+    let visibleCount = 0;
+    for (let i = 0; i < data.length; i++) {
+        const topic = data[i].Topic;
+        alphas[i] = activeTopics.size === 0 || !activeTopics.has(topic) ? 1 : 0;
+        if (alphas[i] === 1) visibleCount++;
+    }
+
+    geometry.attributes.alpha.needsUpdate = true;
+    console.log(`Updated visibility. Visible points: ${visibleCount}/${data.length}`);
+
+    // Force a re-render
+    renderer.render(scene, camera);
+}
+
 /**
  * Base
  */
@@ -22,11 +83,12 @@ const loadData = async () => {
     return data
 }
 
-const createScatterPlot = (data) => {
-    // Create geometry and material for points
-    const geometry = new THREE.BufferGeometry()
-    const positions = new Float32Array(data.length * 3)
-    const colors = new Float32Array(data.length * 3)
+const createScatterPlot = (loadedData) => {
+    data = loadedData; // Assign loadedData to the global data variable
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(data.length * 3);
+    const colors = new Float32Array(data.length * 3);
+    const alphas = new Float32Array(data.length);
 
     // Find min and max for UMAP1 and UMAP2 for scaling
     const umap1Extent = d3.extent(data, d => +d.UMAP1)
@@ -53,26 +115,40 @@ const createScatterPlot = (data) => {
         colors[i * 3] = color.r
         colors[i * 3 + 1] = color.g
         colors[i * 3 + 2] = color.b
+
+        alphas[i] = 1;
     })
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
 
-    const material = new THREE.PointsMaterial({ size: 0.001, vertexColors: true })
-    const points = new THREE.Points(geometry, material)
-    scene.add(points)
+    pointsMaterial = new THREE.PointsMaterial({
+        size: 0.001,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: true,
+        alphaTest: 0.01
+    });
+    points = new THREE.Points(geometry, pointsMaterial);
+    scene.add(points);
 
-    console.log(`Added ${data.length} points to the scene`)
+    // Extract unique topics from the existing data
+    topics = [...new Set(data.map(d => d.Topic))];
+    createTopicButtons();
+
+    console.log(`Added ${data.length} points to the scene`);
+    console.log(`Topics: ${topics.join(', ')}`);
 
     // Add axes helper
-    const axesHelper = new THREE.AxesHelper(5)
-    scene.add(axesHelper)
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
 }
 
 // Load data and create scatter plot
-loadData().then(data => {
-    createScatterPlot(data)
-})
+loadData().then(loadedData => {
+    createScatterPlot(loadedData);
+});
 
 /**
  * Sizes
@@ -126,25 +202,16 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
  */
 const clock = new THREE.Clock()
 
-const tick = () =>
-{
-    const elapsedTime = clock.getElapsedTime()
-
-    // Update controls
-    controls.update()
-
-    // Render
-    renderer.render(scene, camera)
-
-    // Call tick again on the next frame
-    window.requestAnimationFrame(tick)
+const animate = () => {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
 }
+animate();
 
 // Debug info
 console.log('Scene children:', scene.children)
 console.log('Camera position:', camera.position)
-
-tick()
 
 // Add GUI controls for camera and points
 gui.add(camera, 'fov', 1, 180).onChange(() => camera.updateProjectionMatrix())
