@@ -48,16 +48,17 @@ const updatePointsVisibility = () => {
     }
 
     const geometry = points.geometry;
-    const alphas = geometry.attributes.alpha.array;
+    const colors = geometry.attributes.color.array;
 
     let visibleCount = 0;
     for (let i = 0; i < data.length; i++) {
         const topic = data[i].Topic;
-        alphas[i] = activeTopics.size === 0 || !activeTopics.has(topic) ? 1 : 0;
-        if (alphas[i] === 1) visibleCount++;
+        const visible = activeTopics.size === 0 || !activeTopics.has(topic);
+        colors[i * 4 + 3] = visible ? 1 : 0; // Update alpha component
+        if (visible) visibleCount++;
     }
 
-    geometry.attributes.alpha.needsUpdate = true;
+    geometry.attributes.color.needsUpdate = true;
     console.log(`Updated visibility. Visible points: ${visibleCount}/${data.length}`);
 
     // Force a re-render
@@ -87,49 +88,45 @@ const createScatterPlot = (loadedData) => {
     data = loadedData; // Assign loadedData to the global data variable
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(data.length * 3);
-    const colors = new Float32Array(data.length * 3);
-    const alphas = new Float32Array(data.length);
+    const colors = new Float32Array(data.length * 4); // RGBA
 
     // Find min and max for UMAP1 and UMAP2 for scaling
-    const umap1Extent = d3.extent(data, d => +d.UMAP1)
-    const umap2Extent = d3.extent(data, d => +d.UMAP2)
+    const umap1Extent = d3.extent(data, d => +d.UMAP1);
+    const umap2Extent = d3.extent(data, d => +d.UMAP2);
 
     // Scale function for positions
-    const scalePosition = (value, min, max) => (value - min) / (max - min) * 2 - 1
+    const scalePosition = (value, min, max) => (value - min) / (max - min) * 2 - 1;
 
     // Color scale
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10)
+    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
     data.forEach((d, i) => {
         const x = scalePosition(+d.UMAP1, -15, 15)
         const y = scalePosition(+d.UMAP2, -15, 15)
         const z = 0
 
-        console.log(umap1Extent, umap2Extent)
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
 
-        positions[i * 3] = x
-        positions[i * 3 + 1] = y
-        positions[i * 3 + 2] = z
-
-        const color = new THREE.Color(colorScale(d.Topic))
-        colors[i * 3] = color.r
-        colors[i * 3 + 1] = color.g
-        colors[i * 3 + 2] = color.b
-
-        alphas[i] = 1;
-    })
+        const color = new THREE.Color(colorScale(d.Topic));
+        colors[i * 4] = color.r;
+        colors[i * 4 + 1] = color.g;
+        colors[i * 4 + 2] = color.b;
+        colors[i * 4 + 3] = 1; // Alpha, initially all points are visible
+    });
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
 
     pointsMaterial = new THREE.PointsMaterial({
-        size: 0.001,
+        size: 0.005,
         vertexColors: true,
         sizeAttenuation: true,
         transparent: true,
         alphaTest: 0.01
     });
+
     points = new THREE.Points(geometry, pointsMaterial);
     scene.add(points);
 
