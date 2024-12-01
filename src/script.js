@@ -10,29 +10,57 @@ let pointsMaterial;
 let topics = [];
 let activeTopics = new Set();
 let data; // Declare data at the top level
+let userData;
 let raycaster;
 let mouse;
 // At the top of your file, with other global variables
-let tooltip;
 
-// In your initialization code (e.g., at the start of createScatterPlot or in a separate init function)
-function initTooltip() {
-    tooltip = document.getElementById('tooltip');
+// Add this at the top to select the tooltip element
+const tooltip = document.getElementById('tooltip');
+
+function onMouseMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Perform raycasting
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(points);
+
+    if (intersects.length > 0) {
+        // Get the first intersected point
+        const intersected = intersects[0];
+        const index = intersected.index;
+        const datasetType = intersected.object.userData.type;
+        console.log(datasetType)
+        // Get the data corresponding to the intersected point
+        const pointData = data[index];
+        if (pointData) {
+            // Update tooltip content
+        if (datasetType === "tweets") {
+            tooltip.innerHTML = `
+                <strong>Tweet Data</strong><br>
+                Topic: ${pointData.Topic}<br>
+                UMAP1: ${pointData.UMAP1}<br>
+                UMAP2: ${pointData.UMAP2}
+            `;
+        } else  {
+            tooltip.innerHTML = `
+                <strong>User Data</strong><br>
+                Name: ${pointData.Name}<br>
+                UMAP1: ${pointData.UMAP1}<br>
+                UMAP2: ${pointData.UMAP2}
+            `;
+        }
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${event.clientX + 10}px`;
+            tooltip.style.top = `${event.clientY + 10}px`;
+        }
+    } else {
+        // Hide tooltip if no intersection
+        tooltip.style.display = 'none';
+    }
 }
 
-function updateTooltip(content, x, y) {
-    tooltip.innerHTML = content;
-    tooltip.style.left = `${x}px`;
-    tooltip.style.top = `${y}px`;
-    tooltip.style.display = 'block';
-}
-
-function hideTooltip() {
-    tooltip.style.display = 'none';
-}
-
-// In your createScatterPlot function, add:
-initTooltip();
 
 const createTopicButtons = () => {
     const filterContainer = document.getElementById('topic-filters');
@@ -92,10 +120,10 @@ const updatePointsVisibility = () => {
  * Base
  */
 // Debug
-const gui = new GUI()
+// const gui = new GUI()
 
 // Canvas
-const canvas = document.querySelector('canvas.webgl')
+const canvas = document.querySelector('canvas.webgl');
 
 // Scene
 const scene = new THREE.Scene()
@@ -107,51 +135,106 @@ const loadData = async () => {
     return data
 }
 
-const createScatterPlot = (loadedData) => {
-    data = loadedData; // Assign loadedData to the global data variable
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(data.length * 3);
-    const colors = new Float32Array(data.length * 4); // RGBA
+const loadUserData = async () => {
+    const data = await d3.csv("./topic_model_user_data.csv")
+    return data
+}
 
-    // Find min and max for UMAP1 and UMAP2 for scaling
-    const umap1Extent = d3.extent(data, d => +d.UMAP1);
-    const umap2Extent = d3.extent(data, d => +d.UMAP2);
+const createScatterPlot = (loadedData, datasetType) => {
 
     // Scale function for positions
     const scalePosition = (value, min, max) => (value - min) / (max - min) * 2 - 1;
 
-    // Color scale
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+    const zPosition = datasetType === "tweets" ? 0 : 0.001; // User points slightly in front of tweet points
 
-    data.forEach((d, i) => {
-        const x = scalePosition(+d.UMAP1, -15, 15)
-        const y = scalePosition(+d.UMAP2, -15, 15)
-        const z = 0
+    if (datasetType === "tweets") {
+        data = loadedData; // Assign loadedData to the global data variable
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(data.length * 3);
+        const colors = new Float32Array(data.length * 4); // RGBA
 
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y;
-        positions[i * 3 + 2] = z;
+        // Color scale
+        const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-        const color = new THREE.Color(colorScale(d.Topic));
-        colors[i * 4] = color.r;
-        colors[i * 4 + 1] = color.g;
-        colors[i * 4 + 2] = color.b;
-        colors[i * 4 + 3] = 1; // Alpha, initially all points are visible
-    });
+        data.forEach((d, i) => {
+            const x = scalePosition(+d.UMAP1, -15, 15)
+            const y = scalePosition(+d.UMAP2, -15, 15)
+            const z = zPosition;
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = z;
 
-    pointsMaterial = new THREE.PointsMaterial({
-        size: 0.003,
-        vertexColors: true,
-        sizeAttenuation: true,
-        transparent: true,
-        alphaTest: 0.01
-    });
+            const color = new THREE.Color(colorScale(d.Topic));
+            colors[i * 4] = color.r;
+            colors[i * 4 + 1] = color.g;
+            colors[i * 4 + 2] = color.b;
+            colors[i * 4 + 3] = 1; // Alpha, initially all points are visible
+        });
 
-    points = new THREE.Points(geometry, pointsMaterial);
-    scene.add(points);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+
+        pointsMaterial = new THREE.PointsMaterial({
+            size: 0.003,
+            vertexColors: true,
+            sizeAttenuation: true,
+            transparent: true,
+            alphaTest: 0.01
+        });
+
+        points = new THREE.Points(geometry, pointsMaterial);
+        points.userData = {
+            type: datasetType,
+            data: loadedData
+        };
+
+
+        scene.add(points);
+
+
+        // Extract unique topics from the existing data
+        topics = [...new Set(data.map(d => d.Topic))];
+        createTopicButtons();
+
+    }else{
+        userData = loadedData; // Assign loadedData to the global data variable
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(userData.length * 3);
+        const color = new Float32Array(0xff5733); // RGBA
+
+        userData.forEach((d, i) => {
+            const x = scalePosition(+d.UMAP1, -15, 15);
+            const y = scalePosition(+d.UMAP2, -15, 15);
+            const z = zPosition;
+
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = z;
+        });
+
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        // Create a material for these points
+        const material = new THREE.PointsMaterial({
+            size: 0.005,
+            color: color,
+            sizeAttenuation: true,
+            transparent: true,
+        });
+
+        const points = new THREE.Points(geometry, material);
+        points.userData = { type: "additional", data: userData }; // Tag with metadata
+        points.userData = {
+            type: datasetType,
+            data: loadedData
+        };
+
+
+        scene.add(points);
+
+    }
 
     // Initialize raycaster and mouse
     raycaster = new THREE.Raycaster();
@@ -162,12 +245,10 @@ const createScatterPlot = (loadedData) => {
     // Add mouse move event listener
     window.addEventListener('mousemove', onMouseMove);
 
-    // Extract unique topics from the existing data
-    topics = [...new Set(data.map(d => d.Topic))];
-    createTopicButtons();
 
-    console.log(`Added ${data.length} points to the scene`);
-    console.log(`Topics: ${topics.join(', ')}`);
+
+    // console.log(`Added ${data.length} points to the scene`);
+    // console.log(`Topics: ${topics.join(', ')}`);
 
     // Add axes helper
     const axesHelper = new THREE.AxesHelper(5);
@@ -175,17 +256,18 @@ const createScatterPlot = (loadedData) => {
 }
 
 
-function onMouseMove(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-}
-
-
 // Load data and create scatter plot
 loadData().then(loadedData => {
-    createScatterPlot(loadedData);
-    animate(); // Start the animation loop after creating the scatter plot
+    createScatterPlot(loadedData,"tweets");
+    // animate(); // Start the animation loop after creating the scatter plot
 });
+
+loadUserData().then(loadedData => {
+    createScatterPlot(loadedData,"users");
+});
+
+// animate(); // Start the animation loop after creating the scatter plot
+
 
 /**
  * Sizes
@@ -251,40 +333,19 @@ const animate = () => {
         pointsMaterial.size = Math.max(baseSize / scaleFactor, minSize);
     }
 
-   // Check for hover
-   if (raycaster && mouse && camera && points && data) {
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(points);
-
-    if (intersects.length > 0) {
-        const index = intersects[0].index;
-        const point = data[index];
-        if (point && point.User && point.Topic) {
-            const tooltipContent = `<strong>User:</strong> ${point.User}<br><strong>Topic:</strong> ${point.Topic}`;
-            const vector = new THREE.Vector3().fromBufferAttribute(points.geometry.attributes.position, index);
-            vector.project(camera);
-            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
-            updateTooltip(tooltipContent, x + 10, y + 10);
-        } else {
-            hideTooltip();
-        }
-    } else {
-        hideTooltip();
-    }
-}
 
     renderer.render(scene, camera);
 }
 animate();
 
-// Debug info
-console.log('Scene children:', scene.children)
-console.log('Camera position:', camera.position)
 
-// Add GUI controls for camera and points
-gui.add(camera, 'fov', 1, 180).onChange(() => camera.updateProjectionMatrix())
-gui.add(camera.position, 'z', 0.01, 10).name('Camera Z')
-// gui.add(pointsMaterial, 'size', 0.0001, 0.01).name('Point Size')
+// Add mouse move event listener
+window.addEventListener('mousemove', onMouseMove);
+
+// Ensure tooltip hides on window resize or if user moves outside canvas
+canvas.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+});
+
 
 
