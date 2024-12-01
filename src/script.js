@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import GUI from 'lil-gui'
 import * as d3 from 'd3'
 
 
@@ -22,44 +21,68 @@ function onMouseMove(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    // Perform raycasting
+    // Update raycaster based on mouse position
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(points);
 
-    if (intersects.length > 0) {
-        // Get the first intersected point
-        const intersected = intersects[0];
-        const index = intersected.index;
-        const datasetType = intersected.object.userData.type;
-        console.log(datasetType)
-        // Get the data corresponding to the intersected point
-        const pointData = data[index];
-        if (pointData) {
-            // Update tooltip content
+    // Find user points object and tweet points object
+    const userPoints = scene.children.find(obj => obj.userData.type === "users");
+    const tweetPoints = scene.children.find(obj => obj.userData.type === "tweets");
+
+    // Separate raycasting for user and tweet points
+    let userIntersects = [];
+    let tweetIntersects = [];
+
+    if (userPoints) {
+        userIntersects = raycaster.intersectObject(userPoints);
+    }
+
+    if (tweetPoints) {
+        tweetIntersects = raycaster.intersectObject(tweetPoints);
+    }
+
+    let intersected = null;
+
+    if (userIntersects.length > 0) {
+        // Prioritize user points
+        intersected = { object: userPoints, index: userIntersects[0].index };
+    } else if (tweetIntersects.length > 0) {
+        // Fallback to tweet points
+        intersected = { object: tweetPoints, index: tweetIntersects[0].index };
+    }
+
+    if (intersected) {
+        const { object, index } = intersected;
+        const datasetType = object.userData.type;
+        const pointData = object.userData.data[index];
+
+        // Update tooltip content
         if (datasetType === "tweets") {
             tooltip.innerHTML = `
                 <strong>Tweet Data</strong><br>
+                Twitter handle: ${pointData.user}<br>
                 Topic: ${pointData.Topic}<br>
                 UMAP1: ${pointData.UMAP1}<br>
                 UMAP2: ${pointData.UMAP2}
             `;
-        } else  {
+        } else if (datasetType === "users") {
             tooltip.innerHTML = `
                 <strong>User Data</strong><br>
-                Name: ${pointData.Name}<br>
+                Twitter handle: ${pointData.user}<br>
                 UMAP1: ${pointData.UMAP1}<br>
                 UMAP2: ${pointData.UMAP2}
             `;
         }
-            tooltip.style.display = 'block';
-            tooltip.style.left = `${event.clientX + 10}px`;
-            tooltip.style.top = `${event.clientY + 10}px`;
-        }
+
+        // Display tooltip
+        tooltip.style.left = `${event.clientX + 10}px`;
+        tooltip.style.top = `${event.clientY + 10}px`;
+        tooltip.style.display = 'block';
     } else {
         // Hide tooltip if no intersection
         tooltip.style.display = 'none';
     }
 }
+
 
 
 const createTopicButtons = () => {
@@ -119,8 +142,6 @@ const updatePointsVisibility = () => {
 /**
  * Base
  */
-// Debug
-// const gui = new GUI()
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl');
@@ -245,11 +266,6 @@ const createScatterPlot = (loadedData, datasetType) => {
     // Add mouse move event listener
     window.addEventListener('mousemove', onMouseMove);
 
-
-
-    // console.log(`Added ${data.length} points to the scene`);
-    // console.log(`Topics: ${topics.join(', ')}`);
-
     // Add axes helper
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
@@ -259,14 +275,12 @@ const createScatterPlot = (loadedData, datasetType) => {
 // Load data and create scatter plot
 loadData().then(loadedData => {
     createScatterPlot(loadedData,"tweets");
-    // animate(); // Start the animation loop after creating the scatter plot
 });
 
 loadUserData().then(loadedData => {
     createScatterPlot(loadedData,"users");
 });
 
-// animate(); // Start the animation loop after creating the scatter plot
 
 
 /**
