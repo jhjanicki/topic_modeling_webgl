@@ -12,6 +12,8 @@ let data; // Declare data at the top level
 let userData;
 let raycaster;
 let mouse;
+const colorScale = d3.scaleOrdinal(d3.schemeObservable10);
+
 // At the top of your file, with other global variables
 
 // Add this at the top to select the tooltip element
@@ -58,18 +60,15 @@ function onMouseMove(event) {
         // Update tooltip content
         if (datasetType === "tweets") {
             tooltip.innerHTML = `
-                <strong>Tweet Data</strong><br>
-                Twitter handle: ${pointData.user}<br>
+                <strong>Tweet</strong><br>
+                ${pointData.user}<br>
                 Topic: ${pointData.Topic}<br>
-                UMAP1: ${pointData.UMAP1}<br>
-                UMAP2: ${pointData.UMAP2}
             `;
         } else if (datasetType === "users") {
             tooltip.innerHTML = `
-                <strong>User Data</strong><br>
-                Twitter handle: ${pointData.user}<br>
-                UMAP1: ${pointData.UMAP1}<br>
-                UMAP2: ${pointData.UMAP2}
+                <strong>User</strong><br>
+                ${pointData.user}<br>
+                ${pointData['Twitter Name']}
             `;
         }
 
@@ -96,13 +95,13 @@ const createTopicButtons = () => {
         const button = document.createElement('button');
         button.textContent = topic;
         button.classList.add('topic-button');
+        button.style.backgroundColor = colorScale(topic);
         button.addEventListener('click', () => toggleTopic(topic));
         filterContainer.appendChild(button);
     });
 }
 
 const toggleTopic = (topic) => {
-    console.log(`Toggling topic: ${topic}`);
     const button = document.querySelector(`.topic-button:nth-child(${topics.indexOf(topic) + 1})`);
     if (activeTopics.has(topic)) {
         activeTopics.delete(topic);
@@ -175,7 +174,6 @@ const createScatterPlot = (loadedData, datasetType) => {
         const colors = new Float32Array(data.length * 4); // RGBA
 
         // Color scale
-        const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
         data.forEach((d, i) => {
             const x = scalePosition(+d.UMAP1, -15, 15)
@@ -268,7 +266,7 @@ const createScatterPlot = (loadedData, datasetType) => {
 
     // Add axes helper
     const axesHelper = new THREE.AxesHelper(5);
-    scene.add(axesHelper);
+    // scene.add(axesHelper);
 }
 
 
@@ -311,8 +309,10 @@ window.addEventListener('resize', () =>
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.00001, 1000)
-camera.position.set(0, 0, 2)
+camera.position.set(0, 0, 0.8)
 scene.add(camera)
+
+
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
@@ -320,6 +320,7 @@ controls.enableDamping = true
 controls.minDistance = 0.01
 controls.maxDistance = 10
 controls.zoomSpeed = 0.5
+controls.enableRotate = false
 
 /**
  * Renderer

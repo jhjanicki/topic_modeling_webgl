@@ -5,15 +5,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tweet Data Scatter Plot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
     
-  <script type="module" crossorigin src="./assets/index-0695e7ac.js"></script>
-  <link rel="stylesheet" href="./assets/index-14af2b03.css">
+  <script type="module" crossorigin src="./assets/index-44e21c99.js"></script>
+  <link rel="stylesheet" href="./assets/index-c8ba1db0.css">
 </head>
+<style>
+    body {
+        font-family: "Roboto Condensed", sans-serif;
+    }
+
+    button {
+        font-family: "Roboto Condensed", sans-serif;
+    }
+</style>
 
 <body>
     <div id="topic-filters"></div>
     <canvas class="webgl"></canvas>
-    <div id="tooltip" class="tooltip">text</div>
+    <!-- <div id="tooltip" class="tooltip">text</div> -->
+    <div id="tooltip" style="
+    position: absolute;
+    background-color: white;
+    border: 1px solid #ccc;
+    padding: 5px;
+    border-radius: 3px;
+    display: none;
+    pointer-events: none;
+    font-size: 12px;
+    z-index: 10;">
+    </div>
+
 
     
 </body>
